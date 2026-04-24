@@ -1,6 +1,7 @@
 """Math agent that solves questions using tools in a ReAct loop."""
 
 import json
+import time
 
 from dotenv import load_dotenv
 from pydantic_ai import Agent
@@ -9,10 +10,10 @@ from calculator import calculate
 load_dotenv()
 
 # Configure your model below. Examples:
-#   "google-gla:gemini-2.5-flash"       (needs GOOGLE_API_KEY)
+#   "MODEL = "anthropic:claude-haiku-4-5"       (needs GOOGLE_API_KEY)
 #   "openai:gpt-4o-mini"                (needs OPENAI_API_KEY)
 #   "anthropic:claude-sonnet-4-6"    (needs ANTHROPIC_API_KEY)
-MODEL = "google-gla:gemini-2.5-flash"
+MODEL = "anthropic:claude-haiku-4-5"
 
 agent = Agent(
     MODEL,
@@ -34,20 +35,19 @@ def calculator_tool(expression: str) -> str:
     return calculate(expression)
 
 
-# TODO: Implement this tool by uncommenting the code below and replacing
-# the ... with your implementation. The tool should:
-#   1. Read products.json using json.load() (json is already imported above)
-#   2. If the product_name is in the catalog, return its price as a string
-#   3. If not found, return the list of available product names so the agent
-#      can try again with the correct name
-#
-# @agent.tool_plain
-# def product_lookup(product_name: str) -> str:
-#     """Look up the price of a product by name.
-#     Use this when a question asks about product prices from the catalog.
-#     """
-#     ...
-
+@agent.tool_plain
+def product_lookup(product_name: str) -> str:
+    """Look up the price of a product by name.
+    Use this when a question asks about product prices from the catalog.
+    """
+    with open("products.json") as f:
+        products = json.load(f)
+    
+    if product_name in products:
+        return f"{product_name} costs ${products[product_name]}"
+    
+    available = ", ".join(products.keys())
+    return f"Product '{product_name}' not found. Available products: {available}"
 
 def load_questions(path: str = "math_questions.md") -> list[str]:
     """Load numbered questions from the markdown file."""
@@ -67,6 +67,7 @@ def main():
         print(f"> {question}\n")
 
         result = agent.run_sync(question)
+        time.sleep(8)  # Pause to stay under free-tier rate limit
 
         print("### Trace")
         for message in result.all_messages():
